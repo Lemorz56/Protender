@@ -39,6 +39,143 @@ public partial class MainWindow : Window
         classComboBox.ItemsSource = _classes.Keys;
     }
 
+    private void CreateUI(Type type)
+    {
+        if (type == null) return;
+
+        var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(p => p.CanRead && p.CanWrite && !p.Name.Equals("Parser") && !p.Name.Equals("Descriptor"))
+            .ToArray();
+
+        grid.Children.Clear();
+        grid.RowDefinitions.Clear();
+        grid.ColumnDefinitions.Clear();
+
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        for (var i = 0; i < properties.Length; i++)
+        {
+            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+
+            var prop = properties[i];
+
+            var textBlock = new TextBlock
+            {
+                Text = $"{prop.Name}", //todo: ({prop.PropertyType.Name})
+                FontWeight = FontWeights.Bold,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(5)
+            };
+
+            FrameworkElement inputControl = null;
+
+            if (prop.PropertyType == typeof(string) || prop.PropertyType == typeof(int))
+            {
+                inputControl = new TextBox
+                {
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(5)
+                };
+
+                inputControl.SetBinding(TextBox.TextProperty, new Binding(prop.Name)
+                {
+                    Mode = BindingMode.TwoWay,
+                    UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
+                });
+            }
+            else if (prop.PropertyType == typeof(bool))
+            {
+                inputControl = new CheckBox
+                {
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(5)
+                };
+
+                inputControl.SetBinding(ToggleButton.IsCheckedProperty, new Binding(prop.Name)
+                {
+                    Mode = BindingMode.TwoWay,
+                    UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
+                });
+            }
+            else
+            {
+                inputControl = new TextBlock
+                {
+                    Text = "Not supported",
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(5)
+                };
+            }
+
+            Grid.SetRow(textBlock, i);
+            Grid.SetColumn(textBlock, 0);
+            Grid.SetRow(inputControl, i);
+            Grid.SetColumn(inputControl, 1);
+
+            grid.Children.Add(textBlock);
+            grid.Children.Add(inputControl);
+        }
+
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+
+        var consoleButton = new Button
+        {
+            Content = "Log to Console",
+            Margin = new Thickness(5),
+            Padding = new Thickness(10),
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+
+        consoleButton.Click += (sender, args) =>
+        {
+            // Create an instance of the type that was passed to CreateUI
+            var instance = Activator.CreateInstance(type);
+
+            // Assign the property values from the UI controls to the instance
+            foreach (var child in grid.Children)
+            {
+                if (child is TextBox textBox && Grid.GetColumn(textBox) == 1)
+                {
+                    var propertyName = grid.Children
+                        .OfType<TextBlock>()
+                        .First(tb => Grid.GetRow(tb) == Grid.GetRow(textBox) && Grid.GetColumn(tb) == 0)
+                        .Text.Replace(":", "");
+
+                    var propertyInfo = type.GetProperty(propertyName);
+
+                    if (propertyInfo != null)
+                    {
+                        var value = GetValueFromChildControl(propertyInfo,
+                            textBox.Text); //todo: here I already have a value
+                        propertyInfo.SetValue(instance, value);
+                    }
+                }
+
+                if (child is CheckBox checkBox && Grid.GetColumn(checkBox) == 1)
+                {
+                    var propertyName = grid.Children
+                        .OfType<TextBlock>()
+                        .First(tb => Grid.GetRow(tb) == Grid.GetRow(checkBox) && Grid.GetColumn(tb) == 0)
+                        .Text.Replace(":", "");
+
+                    var propertyInfo = type.GetProperty(propertyName);
+
+                    if (propertyInfo != null)
+                        propertyInfo.SetValue(instance, checkBox.IsChecked);
+                }
+            }
+
+            // Write the instance to the console
+            Console.WriteLine(instance);
+        };
+
+        Grid.SetRow(consoleButton, properties.Length);
+        Grid.SetColumnSpan(consoleButton, 2);
+
+        grid.Children.Add(consoleButton);
+    }
+
     private void classComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         var comboItem = classComboBox.SelectedItem;
@@ -76,147 +213,41 @@ public partial class MainWindow : Window
     //    Console.WriteLine(instance);
     //}
 
-    private object GetValueFromChildControl(PropertyInfo propertyInfo, FrameworkElement parent)
+    private object GetValueFromChildControl(PropertyInfo propertyInfo, string parent)
     {
-        var propertyName = propertyInfo.Name;
-        var childControl = parent.FindName(propertyName) as FrameworkElement;
-        childControl = parent;
-
-        if (childControl == null)
-            throw new ArgumentException(
-                $"Control with name {propertyName} not found in the logical tree of the parent control.");
-
         if (propertyInfo.PropertyType == typeof(string))
         {
-            return ((TextBox)childControl).Text;
+            return parent; //((TextBox)childControl).Text;
         }
         else if (propertyInfo.PropertyType == typeof(bool))
         {
-            return ((CheckBox)childControl).IsChecked.GetValueOrDefault();
+            bool.TryParse(parent, out var value);
+            return value;
         }
         else if (propertyInfo.PropertyType == typeof(int))
         {
-            int.TryParse(((TextBox)childControl).Text, out var value);
+            int.TryParse(parent, out var value);
             return value;
         }
         else if (propertyInfo.PropertyType == typeof(double))
         {
-            double.TryParse(((TextBox)childControl).Text, out var value);
+            double.TryParse(parent, out var value);
             return value;
         }
         else if (propertyInfo.PropertyType == typeof(float))
         {
-            float.TryParse(((TextBox)childControl).Text, out var value);
+            float.TryParse(parent, out var value);
             return value;
         }
         else if (propertyInfo.PropertyType == typeof(DateTime))
         {
-            DateTime.TryParse(((TextBox)childControl).Text, out var value);
+            DateTime.TryParse(parent, out var value);
             return value;
         }
 
         throw new NotImplementedException($"Type {propertyInfo.PropertyType} is not implemented.");
     }
 
-
-    private void CreateUI(Type type)
-    {
-        if (type == null) return;
-
-        var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(p => p.CanRead && p.CanWrite && !p.Name.Equals("Parser") && !p.Name.Equals("Descriptor"))
-            .ToArray();
-
-        grid.Children.Clear();
-        grid.RowDefinitions.Clear();
-        grid.ColumnDefinitions.Clear();
-
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        for (var i = 0; i < properties.Length; i++)
-        {
-            grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
-
-            var prop = properties[i];
-
-            var textBlock = new TextBlock
-            {
-                Text = $"{prop.Name}", //todo: ({prop.PropertyType.Name})
-                FontWeight = FontWeights.Bold,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(5)
-            };
-
-            var binding = new Binding(prop.Name)
-            {
-                Mode = BindingMode.TwoWay,
-                UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
-            };
-
-            var textBox = new TextBox
-            {
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(5)
-            };
-
-            textBox.SetBinding(TextBox.TextProperty, binding);
-
-            Grid.SetRow(textBlock, i);
-            Grid.SetColumn(textBlock, 0);
-            Grid.SetRow(textBox, i);
-            Grid.SetColumn(textBox, 1);
-
-            grid.Children.Add(textBlock);
-            grid.Children.Add(textBox);
-        }
-
-        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
-
-        var consoleButton = new Button
-        {
-            Content = "Log to Console",
-            Margin = new Thickness(5),
-            Padding = new Thickness(10),
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-
-        consoleButton.Click += (sender, args) =>
-        {
-            // Create an instance of the type that was passed to CreateUI
-            var instance = Activator.CreateInstance(type);
-
-            // Assign the property values from the UI controls to the instance
-            foreach (var child in grid.Children)
-                if (child is TextBlock textBlock && Grid.GetColumn(textBlock) == 0)
-                {
-                    var propertyName = textBlock.Text.Replace(":", "");
-                    var propertyInfo = type.GetProperty(propertyName);
-                    if (propertyInfo != null)
-                    {
-                        var value = GetValueFromChildControl(propertyInfo, child as FrameworkElement);
-                        propertyInfo.SetValue(instance, value);
-                    }
-                }
-
-            // Write the instance to the console
-            Console.WriteLine(instance);
-        };
-
-        //consoleButton.Click += (sender, args) =>
-        //{
-        //    var instance = Activator.CreateInstance(type);
-        //    foreach (var prop in properties)
-        //        prop.SetValue(instance, Convert.ChangeType(prop.GetValue(instance), prop.PropertyType));
-        //    Console.WriteLine(instance);
-        //    MessageBox.Show(instance.ToString());
-        //};
-
-        Grid.SetRow(consoleButton, properties.Length);
-        Grid.SetColumnSpan(consoleButton, 2);
-
-        grid.Children.Add(consoleButton);
-    }
 
     public static Assembly? FindAssemblyInReferences(string prefixName)
     {
