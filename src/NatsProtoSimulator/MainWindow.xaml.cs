@@ -1,17 +1,17 @@
 ﻿using System;
-using System.CodeDom;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Media;
-using Testing;
+using Microsoft.Win32;
+using NATS.Client;
+using static NatsProtoSimulator.UiHelper;
+using Color = System.Drawing.Color;
 
 namespace NatsProtoSimulator;
 
@@ -20,26 +20,81 @@ namespace NatsProtoSimulator;
 /// </summary>
 public partial class MainWindow : Window
 {
-    private Dictionary<string, Type> _classes = new();
+    private Dictionary<string, Type?> _classes = new();
+    private string _selectedFile = "";
+    private IConnection? _connection;
 
     public MainWindow()
     {
         InitializeComponent();
-        LoadClasses("NatsProtoSimulatorProtos");
+        ClassComboBox.IsEnabled = false;
+        //LoadClasses("NatsProtoSimulatorProtos");
     }
 
-    private void LoadClasses(string assemblyName)
+    private void ConnectToNats(string connectionUrl)
     {
-        var assemblyWorking = FindAssemblyInReferences(assemblyName);
+        if (string.IsNullOrWhiteSpace(connectionUrl))
+        {
+            MessageBox.Show("Please enter a valid URL!");
+            return;
+        }
 
-        if (assemblyWorking != null)
-            foreach (var type in assemblyWorking.GetTypes().Where(t => t.IsClass && !t.IsAbstract))
-                _classes.Add(type.Name, type);
+        var opts = ConnectionFactory.GetDefaultOptions();
+        opts.Url = connectionUrl;
 
-        classComboBox.ItemsSource = _classes.Keys;
+        opts.Name = $"{Environment.MachineName}-NatsProto";
+        opts.AllowReconnect = false;
+        opts.DisconnectedEventHandler += async (sender, args) =>
+        {
+            await Dispatcher.InvokeAsync(() => SetNatsStatus(ConnectionStatus.Disconnected));
+        };
+
+        opts.ClosedEventHandler += async (sender, args) =>
+        {
+            await Dispatcher.InvokeAsync(() => SetNatsStatus(ConnectionStatus.Closed));
+        };
+
+        opts.ReconnectedEventHandler += async (sender, args) =>
+        {
+            await Dispatcher.InvokeAsync(() => SetNatsStatus(ConnectionStatus.Reconnected));
+        };
+
+        var connectionFactory = new ConnectionFactory();
+        IConnection connection;
+        try
+        {
+            connection = connectionFactory.CreateConnection(opts);
+        }
+        catch (NATSConnectionException e)
+        {
+            MessageBox.Show(e.Message);
+            NatsConnectButton.IsEnabled = true;
+            return;
+        }
+        catch (Exception e)
+        {
+            MessageBox.Show($"FATAL: {e.Message}");
+            throw;
+        }
+
+        if (connection.IsClosed()) return;
+
+        _connection = connection;
+        ConnStatus.Text = "CONNECTED";
+        ConnStatus.Foreground = new SolidColorBrush(Colors.Green);
     }
 
-    private void CreateUI(Type type)
+
+    private void ClassComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        var comboItem = ClassComboBox.SelectedItem;
+        var ss = comboItem.ToString();
+        if (ss == null) return;
+        var selectedType = _classes[ss];
+        CreateUi(selectedType);
+    }
+
+    private void CreateUi(Type? type)
     {
         if (type == null) return;
 
@@ -62,13 +117,13 @@ public partial class MainWindow : Window
 
             var textBlock = new TextBlock
             {
-                Text = $"{prop.Name}", //todo: ({prop.PropertyType.Name})
+                Text = $"{prop.Name} ({prop.PropertyType.Name})",
                 FontWeight = FontWeights.Bold,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(5)
             };
 
-            FrameworkElement inputControl = null;
+            FrameworkElement inputControl;
 
             if (prop.PropertyType == typeof(string) || prop.PropertyType == typeof(int))
             {
@@ -140,14 +195,14 @@ public partial class MainWindow : Window
                     var propertyName = grid.Children
                         .OfType<TextBlock>()
                         .First(tb => Grid.GetRow(tb) == Grid.GetRow(textBox) && Grid.GetColumn(tb) == 0)
-                        .Text.Replace(":", "");
+                        .Text.Split(" ");
 
-                    var propertyInfo = type.GetProperty(propertyName);
+                    var propertyInfo = type.GetProperty(propertyName[0]);
 
                     if (propertyInfo != null)
                     {
-                        var value = GetValueFromChildControl(propertyInfo,
-                            textBox.Text); //todo: here I already have a value
+                        var value = GetValueFromControl(propertyInfo,
+                            textBox.Text);
                         propertyInfo.SetValue(instance, value);
                     }
                 }
@@ -157,17 +212,17 @@ public partial class MainWindow : Window
                     var propertyName = grid.Children
                         .OfType<TextBlock>()
                         .First(tb => Grid.GetRow(tb) == Grid.GetRow(checkBox) && Grid.GetColumn(tb) == 0)
-                        .Text.Replace(":", "");
+                        .Text.Split(" ");
 
-                    var propertyInfo = type.GetProperty(propertyName);
+                    var propertyInfo = type.GetProperty(propertyName[0]);
 
                     if (propertyInfo != null)
                         propertyInfo.SetValue(instance, checkBox.IsChecked);
                 }
             }
 
-            // Write the instance to the console
             Console.WriteLine(instance);
+            MessageBox.Show(instance?.ToString());
         };
 
         Grid.SetRow(consoleButton, properties.Length);
@@ -176,91 +231,65 @@ public partial class MainWindow : Window
         grid.Children.Add(consoleButton);
     }
 
-    private void classComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void FileSelector_OnClick(object sender, RoutedEventArgs e)
     {
-        var comboItem = classComboBox.SelectedItem;
-        var ss = comboItem.ToString();
-        if (ss == null) return;
-        var selectedType = _classes[ss];
-        CreateUI(selectedType);
+        var openFileDlg = new OpenFileDialog
+        {
+            Filter = "DLL files (*.dll)|*.dll",
+            Title = "Select a DLL file"
+        };
+
+        if (openFileDlg.ShowDialog() == true)
+        {
+            _selectedFile = openFileDlg.FileName;
+            var splitList = _selectedFile.Split("\\");
+            var splitTest = splitList.TakeLast(1).SingleOrDefault();
+            var sanitizedAssemblyName = splitTest?.Replace(".dll", "");
+            if (sanitizedAssemblyName != null)
+            {
+                _classes = AssemblyUtils.LoadClasses(sanitizedAssemblyName);
+                ClassComboBox.IsEnabled = true;
+                ClassComboBox.ItemsSource = _classes.Keys;
+                return;
+            }
+
+            MessageBox.Show("Could not load that assembly.");
+        }
     }
 
-    //private void ConsoleButton_Click(object sender, RoutedEventArgs e)
-    //{
-    //    var className = classComboBox.SelectedItem as string;
-    //    if (className == null) return;
-
-    //    var selectedType = _classes[className];
-    //    var instance = Activator.CreateInstance(selectedType);
-
-    //    foreach (var child in grid.Children)
-    //        if (child is TextBlock textBlock && Grid.GetColumn(textBlock) == 0)
-    //        {
-    //            var oldName = textBlock.Text;
-
-    //            var result = Regex.Replace(textBlock.Text, @"\(.*?\)", string.Empty);
-    //            var propertyName = result.Replace("(", "").Replace(")", "");
-    //            var trimmedPropName = propertyName.Trim();
-
-    //            var propertyInfo = selectedType.GetProperty(trimmedPropName);
-    //            if (propertyInfo != null)
-    //            {
-    //                var value = GetValueFromChildControl(propertyInfo, textBlock);
-    //                propertyInfo.SetValue(instance, value);
-    //            }
-    //        }
-
-    //    Console.WriteLine(instance);
-    //}
-
-    private object GetValueFromChildControl(PropertyInfo propertyInfo, string parent)
+    private void NatsConnectButton_OnClick(object sender, RoutedEventArgs e)
     {
-        if (propertyInfo.PropertyType == typeof(string))
-        {
-            return parent; //((TextBox)childControl).Text;
-        }
-        else if (propertyInfo.PropertyType == typeof(bool))
-        {
-            bool.TryParse(parent, out var value);
-            return value;
-        }
-        else if (propertyInfo.PropertyType == typeof(int))
-        {
-            int.TryParse(parent, out var value);
-            return value;
-        }
-        else if (propertyInfo.PropertyType == typeof(double))
-        {
-            double.TryParse(parent, out var value);
-            return value;
-        }
-        else if (propertyInfo.PropertyType == typeof(float))
-        {
-            float.TryParse(parent, out var value);
-            return value;
-        }
-        else if (propertyInfo.PropertyType == typeof(DateTime))
-        {
-            DateTime.TryParse(parent, out var value);
-            return value;
-        }
-
-        throw new NotImplementedException($"Type {propertyInfo.PropertyType} is not implemented.");
+        NatsConnectButton.IsEnabled = false;
+        ConnectToNats(NatsUrlBox.Text);
     }
 
-
-    public static Assembly? FindAssemblyInReferences(string prefixName)
+    private void SetNatsStatus(ConnectionStatus status)
     {
-        var loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies().ToList();
-        var loadedPaths = loadedAssemblies.Select(a => a.Location).ToArray();
-
-        var referencedPaths = Directory.GetFiles(AppDomain.CurrentDomain.BaseDirectory, "*.dll");
-        var toLoad = referencedPaths.Where(r => !loadedPaths.Contains(r, StringComparer.InvariantCultureIgnoreCase))
-            .Where(x => x.Contains(prefixName))
-            .ToList();
-
-        toLoad.ForEach(path => loadedAssemblies.Add(AppDomain.CurrentDomain.Load(AssemblyName.GetAssemblyName(path))));
-
-        return loadedAssemblies.FirstOrDefault(x => x.FullName != null && x.FullName.Contains(prefixName));
+        switch (status)
+        {
+            case ConnectionStatus.Closed:
+                ConnStatus.Text = "CLOSED";
+                ConnStatus.Foreground = new SolidColorBrush(Colors.Red);
+                NatsConnectButton.IsEnabled = true;
+                break;
+            case ConnectionStatus.Connected:
+                ConnStatus.Text = "CONNECTED";
+                ConnStatus.Foreground = new SolidColorBrush(Colors.Green);
+                break;
+            case ConnectionStatus.Disconnected:
+                ConnStatus.Text = "DISCONNECTED";
+                ConnStatus.Foreground = new SolidColorBrush(Colors.Orange);
+                NatsConnectButton.IsEnabled = true;
+                break;
+            case ConnectionStatus.Reconnected:
+                ConnStatus.Text = "RECONNECTING...";
+                ConnStatus.Foreground = new SolidColorBrush(Colors.Blue);
+                break;
+            default:
+                ConnStatus.Text = "UNKNOWN";
+                ConnStatus.Foreground = new SolidColorBrush(Colors.Black);
+                NatsConnectButton.IsEnabled = true;
+                break;
+        }
     }
 }

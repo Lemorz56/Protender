@@ -12,9 +12,19 @@
          <RowDefinition Height="*" />
       </Grid.RowDefinitions>
       <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10">
+         <!-- ASSEMBLY -->
+         <TextBlock Text="Select a DLL to load classes from:" VerticalAlignment="Center" Margin="0,0,5,0" />
+         <Button Padding="10, 5, 10, 5" Margin="5, 5, 5, 5" Click="FileSelector_OnClick">Select a DLL</Button>
          <TextBlock Text="Class:" VerticalAlignment="Center" Margin="0,0,5,0" />
-         <ComboBox x:Name="classComboBox" VerticalAlignment="Center" Margin="0,0,10,0" Width="200"
-                   SelectionChanged="classComboBox_SelectionChanged"/>
+         <ComboBox x:Name="ClassComboBox" VerticalAlignment="Center" Margin="0,0,10,0" Width="200"
+                   SelectionChanged="ClassComboBox_SelectionChanged"/>
+         <!-- NATS -->
+         <TextBlock Text="NATS URL:" VerticalAlignment="Center" Margin="10,5,5,5" ></TextBlock>
+         <TextBox Name="NatsUrlBox" Padding="10, 5, 10, 5" Margin="10,5,5,5" VerticalAlignment="Center" Text="nats://localhost:4222" Width="200" AcceptsReturn="False" AcceptsTab="False" ></TextBox>
+         <TextBlock Name="ConnStatus" Text="UNKNOWN" VerticalAlignment="Center" Margin="10,5,5,5" ></TextBlock>
+         <Button x:Name="NatsConnectButton" Padding="15, 1, 15, 1" Margin="10, 5, 5, 5" Click="NatsConnectButton_OnClick">Connect</Button>
+         <!-- === -->
+
       </StackPanel>
       <ScrollViewer Grid.Row="1" Margin="10">
          <Grid x:Name="grid" />
