@@ -9,6 +9,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Protender", "src\NatsProtoS
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NatsProtoSimulatorProtos", "src\NatsProtoSimulatorProtos\NatsProtoSimulatorProtos.csproj", "{BACB0310-47ED-47A3-A005-F1297E3A0C8D}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Protender.Tests", "src\Protender.Tests\Protender.Tests.csproj", "{F064CCAA-93EE-42C8-A407-A0E4F483D1CC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -23,6 +25,10 @@ Global
 		{BACB0310-47ED-47A3-A005-F1297E3A0C8D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{BACB0310-47ED-47A3-A005-F1297E3A0C8D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{BACB0310-47ED-47A3-A005-F1297E3A0C8D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F064CCAA-93EE-42C8-A407-A0E4F483D1CC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F064CCAA-93EE-42C8-A407-A0E4F483D1CC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F064CCAA-93EE-42C8-A407-A0E4F483D1CC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F064CCAA-93EE-42C8-A407-A0E4F483D1CC}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
