@@ -12,17 +12,11 @@ jobs:
     name: Release
     strategy:
       matrix:
-        kind: ['windows'] #, 'linux', 'macOS']
+        kind: ['windows']
         include:
           - kind: windows
             os: windows-latest
             target: win-x64
-          # - kind: linux
-          #   os: ubuntu-latest
-          #   target: linux-x64
-          # - kind: macOS
-          #   os: macos-latest
-          #   target: osx-x64
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -54,6 +48,6 @@ jobs:
       - name: Publish
         uses: softprops/action-gh-release@v1
         with:
-          files: D:\a\Protender\Protender.zip
+          files: Protender.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
