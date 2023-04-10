@@ -34,6 +34,7 @@ jobs:
         with:
           dotnet-version: 6.0.x
 
+# todo: remove --self-contained for assembly reasons
       - name: Publish
         run: |
           $env:TAG=$(git describe --tags --abbrev=0)
@@ -44,11 +45,11 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: Application_Artifact
-          path: D:\a\Protender\protender\
+          path: D:\a\Protender\protender\protender\
       
       - name: Publish
         uses: softprops/action-gh-release@v1
         with:
-          files: "Protender.exe"
+          files: D:\a\Protender\protender\protender\Protender.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
