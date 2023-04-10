@@ -1,0 +1,54 @@
+# This workflow will build a .NET project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
+
+name: Publish
+on:
+  push:
+    tags:
+      - "*"
+
+jobs:
+  release:
+    name: Release
+    strategy:
+      matrix:
+        kind: ['windows']
+        include:
+          - kind: windows
+            os: windows-latest
+            target: win-x64
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 6.0.x
+
+# todo: remove --self-contained for assembly reasons
+      - name: Publish
+        run: |
+          $env:TAG=$(git describe --tags --abbrev=0)
+          $env:RELEASE_NAME="Protender-$env:TAG-${{ matrix.target }}"
+          dotnet publish src/Protender/Protender.csproj -c Release -o "protender" -r win-x64 --version-suffix $env:TAG --no-self-contained
+
+      - name: Zip folder
+        run: 7z a -tzip "Protender.zip" "D:\a\Protender\protender\protender\*"
+
+      # - name: Upload Build Artifact
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: Protender-Executable
+      #     path: D:\a\Protender\Protender.zip
+      #     if-no-files-found: error
+      #     # path: D:\a\Protender\protender\protender\
+      
+      - name: Publish
+        uses: softprops/action-gh-release@v1
+        with:
+          files: Protender.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
