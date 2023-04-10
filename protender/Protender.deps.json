@@ -1,0 +1,81 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v6.0/win-x64",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v6.0": {},
+    ".NETCoreApp,Version=v6.0/win-x64": {
+      "Protender/1.0.0-v0.1.1": {
+        "dependencies": {
+          "Google.Protobuf": "3.22.1",
+          "Grpc.Tools": "2.53.0",
+          "NATS.Client": "1.0.3",
+          "NatsProtoSimulatorProtos": "1.0.0-v0.1.1"
+        },
+        "runtime": {
+          "Protender.dll": {}
+        }
+      },
+      "Google.Protobuf/3.22.1": {
+        "runtime": {
+          "lib/net5.0/Google.Protobuf.dll": {
+            "assemblyVersion": "3.22.1.0",
+            "fileVersion": "3.22.1.0"
+          }
+        }
+      },
+      "Grpc.Tools/2.53.0": {},
+      "NATS.Client/1.0.3": {
+        "runtime": {
+          "lib/netstandard2.0/NATS.Client.dll": {
+            "assemblyVersion": "1.0.3.0",
+            "fileVersion": "1.0.3.0"
+          }
+        }
+      },
+      "NatsProtoSimulatorProtos/1.0.0-v0.1.1": {
+        "dependencies": {
+          "Google.Protobuf": "3.22.1"
+        },
+        "runtime": {
+          "NatsProtoSimulatorProtos.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "Protender/1.0.0-v0.1.1": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Google.Protobuf/3.22.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-Ul4gVJWLya83Z8/n3+O4QKhD8ukCCwNLDyoWpUdJSnmzxRe8o3pWiuCzzvN2z/LVH60nozlKpTzhJo3ctI+G4Q==",
+      "path": "google.protobuf/3.22.1",
+      "hashPath": "google.protobuf.3.22.1.nupkg.sha512"
+    },
+    "Grpc.Tools/2.53.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-vm8iRSAF/4PN9g555iYZwhCQptSE4cZ8xk5W1TQ+JcHwaHSrBhD+P6H4l0+SqqfzuX7sGpjjOMQJXHSyrERTgw==",
+      "path": "grpc.tools/2.53.0",
+      "hashPath": "grpc.tools.2.53.0.nupkg.sha512"
+    },
+    "NATS.Client/1.0.3": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-Qh72r7LsJrO86+Km7gTb6OtZN9ZmX5wEjTGnlc8Ui/ROAV9XYsBmgGEJGgHkreaismnar6fRv3Hfrfr9LWBaaw==",
+      "path": "nats.client/1.0.3",
+      "hashPath": "nats.client.1.0.3.nupkg.sha512"
+    },
+    "NatsProtoSimulatorProtos/1.0.0-v0.1.1": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}
