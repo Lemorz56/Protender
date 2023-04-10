@@ -40,16 +40,20 @@ jobs:
           $env:TAG=$(git describe --tags --abbrev=0)
           $env:RELEASE_NAME="Protender-$env:TAG-${{ matrix.target }}"
           dotnet publish src/Protender/Protender.csproj -c Release -o "protender" -r win-x64 /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true --version-suffix $env:TAG --self-contained
-      
+
+      - name: Zip folder
+        run: 7z a -tzip "Protender.zip" "D:\a\Protender\protender\protender\*"
+
       - name: Upload Build Artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: Application_Artifact
-          path: D:\a\Protender\protender\protender\
+          path: D:\a\Protender\Protender.zip
+          # path: D:\a\Protender\protender\protender\
       
       - name: Publish
         uses: softprops/action-gh-release@v1
         with:
-          files: D:\a\Protender\protender\protender\Protender.exe
+          files: D:\a\Protender\Protender.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
