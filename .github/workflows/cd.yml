@@ -1,0 +1,52 @@
+# This workflow will build a .NET project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
+
+name: Publish
+on:
+  push:
+    tags:
+      - "*"
+
+jobs:
+  release:
+    name: Release
+    strategy:
+      matrix:
+        kind: ['windows'] #, 'linux', 'macOS']
+        include:
+          - kind: windows
+            os: windows-latest
+            target: win-x64
+          # - kind: linux
+          #   os: ubuntu-latest
+          #   target: linux-x64
+          # - kind: macOS
+          #   os: macos-latest
+          #   target: osx-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 6.0.x
+
+      - name: Publish
+        run: |
+          tag=$(git describe --tags --abbrev=0)
+          release_name="Protender-$tag-${{ matrix.target }}"
+          dotnet publish src/Protender/Protender.csproj -c Release -o "$release_name" -r win-x64 /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true --version-suffix $tag
+      
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: Application_Artifact
+          path: D:\a\Protender\Protender\release\
+      
+      - name: Publish
+        uses: softprops/action-gh-release@v1
+        with:
+          files: "App*"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
