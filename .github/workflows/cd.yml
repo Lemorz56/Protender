@@ -36,14 +36,13 @@ jobs:
         run: |
           $env:TAG=$(git describe --tags --abbrev=0)
           $env:RELEASE_NAME="Protender-$env:TAG-${{ matrix.target }}"
-          dotnet publish src/Protender/Protender.csproj -c Release -o "$env:RELEASE_NAME" -r win-x64 /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true --version-suffix $env:TAG --self-contained
-          echo "::set-env name=RELEASE_NAME::$env:RELEASE_NAME"
+          dotnet publish src/Protender/Protender.csproj -c Release -o "protender" -r win-x64 /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true --version-suffix $env:TAG --self-contained
       
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v2
         with:
           name: Application_Artifact
-          path: D:\a\Protender\$env:RELEASE_NAME\
+          path: D:\a\Protender\protender\
       
       - name: Publish
         uses: softprops/action-gh-release@v1
