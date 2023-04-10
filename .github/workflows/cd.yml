@@ -34,9 +34,9 @@ jobs:
 
       - name: Publish
         run: |
-          tag=$(git describe --tags --abbrev=0)
-          release_name="Protender-$tag-${{ matrix.target }}"
-          dotnet publish src/Protender/Protender.csproj -c Release -o "$release_name" -r win-x64 /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true --version-suffix $tag
+          $env:TAG=$(git describe --tags --abbrev=0)
+          $env:RELEASE_NAME="Protender-$env:TAG-${{ matrix.target }}"
+          dotnet publish src/Protender/Protender.csproj -c Release -o "$env:RELEASE_NAME" -r win-x64 /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true --version-suffix $env:TAG
       
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v2
@@ -47,6 +47,6 @@ jobs:
       - name: Publish
         uses: softprops/action-gh-release@v1
         with:
-          files: "App*"
+          files: "Protender*"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
