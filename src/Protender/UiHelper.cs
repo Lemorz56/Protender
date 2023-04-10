@@ -1,15 +1,12 @@
-﻿using NATS.Client;
-using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.Linq;
+﻿using System;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Media;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using Color = System.Drawing.Color;
 
-namespace NatsProtoSimulator;
+namespace Protender;
 
 public static class UiHelper
 {
@@ -18,7 +15,53 @@ public static class UiHelper
         Closed = 0,
         Connected = 1,
         Disconnected = 2,
-        Reconnected = 3
+        Reconnecting = 3
+    }
+
+    public static FrameworkElement GetControlByType(PropertyInfo prop)
+    {
+        FrameworkElement inputControl;
+
+        if (prop.PropertyType == typeof(string) || prop.PropertyType == typeof(int) ||
+            prop.PropertyType == typeof(double) || prop.PropertyType == typeof(decimal))
+        {
+            inputControl = new TextBox
+            {
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(5)
+            };
+
+            inputControl.SetBinding(TextBox.TextProperty, new Binding(prop.Name)
+            {
+                Mode = BindingMode.TwoWay,
+                UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
+            });
+        }
+        else if (prop.PropertyType == typeof(bool))
+        {
+            inputControl = new CheckBox
+            {
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(5)
+            };
+
+            inputControl.SetBinding(ToggleButton.IsCheckedProperty, new Binding(prop.Name)
+            {
+                Mode = BindingMode.TwoWay,
+                UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
+            });
+        }
+        else
+        {
+            inputControl = new TextBlock
+            {
+                Text = "Not supported",
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(5)
+            };
+        }
+
+        return inputControl;
     }
 
     public static object GetValueFromControl(PropertyInfo propertyInfo, string valueFromControl)
@@ -54,37 +97,5 @@ public static class UiHelper
         }
 
         throw new NotImplementedException($"Type {propertyInfo.PropertyType} is not implemented.");
-    }
-
-    public static Tuple<string, Color> SetNatsStatus(ConnectionStatus status)
-    {
-        string text;
-        Color color;
-
-        switch (status)
-        {
-            case ConnectionStatus.Closed:
-                text = "CLOSED";
-                color = Color.Red;
-                break;
-            case ConnectionStatus.Connected:
-                text = "CONNECTED";
-                color = Color.Green;
-                break;
-            case ConnectionStatus.Disconnected:
-                text = "DISCONNECTED";
-                color = Color.Orange;
-                break;
-            case ConnectionStatus.Reconnected:
-                text = "RECONNECTING...";
-                color = Color.Blue;
-                break;
-            default:
-                text = "UNKNOWN";
-                color = Color.Black;
-                break;
-        }
-
-        return new Tuple<string, Color>(text, color);
     }
 }

@@ -2,18 +2,16 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
-using System.Windows.Data;
+using System.Windows.Input;
 using System.Windows.Media;
+using Google.Protobuf;
 using Microsoft.Win32;
 using NATS.Client;
-using static NatsProtoSimulator.UiHelper;
-using Color = System.Drawing.Color;
+using static Protender.UiHelper;
 
-namespace NatsProtoSimulator;
+namespace Protender;
 
 /// <summary>
 /// Interaction logic for MainWindow.xaml
@@ -24,66 +22,18 @@ public partial class MainWindow : Window
     private string _selectedFile = "";
     private IConnection? _connection;
 
+    private NatsPublisher? _natsPublisher;
+
     public MainWindow()
     {
         InitializeComponent();
+
         ClassComboBox.IsEnabled = false;
-        //LoadClasses("NatsProtoSimulatorProtos");
+        NatsSubjectText.Visibility = Visibility.Hidden;
+        NatsSubjectBox.Visibility = Visibility.Hidden;
+        MessageCountText.Visibility = Visibility.Hidden;
+        MessageCountBox.Visibility = Visibility.Hidden;
     }
-
-    private void ConnectToNats(string connectionUrl)
-    {
-        if (string.IsNullOrWhiteSpace(connectionUrl))
-        {
-            MessageBox.Show("Please enter a valid URL!");
-            return;
-        }
-
-        var opts = ConnectionFactory.GetDefaultOptions();
-        opts.Url = connectionUrl;
-
-        opts.Name = $"{Environment.MachineName}-NatsProto";
-        opts.AllowReconnect = false;
-        opts.DisconnectedEventHandler += async (sender, args) =>
-        {
-            await Dispatcher.InvokeAsync(() => SetNatsStatus(ConnectionStatus.Disconnected));
-        };
-
-        opts.ClosedEventHandler += async (sender, args) =>
-        {
-            await Dispatcher.InvokeAsync(() => SetNatsStatus(ConnectionStatus.Closed));
-        };
-
-        opts.ReconnectedEventHandler += async (sender, args) =>
-        {
-            await Dispatcher.InvokeAsync(() => SetNatsStatus(ConnectionStatus.Reconnected));
-        };
-
-        var connectionFactory = new ConnectionFactory();
-        IConnection connection;
-        try
-        {
-            connection = connectionFactory.CreateConnection(opts);
-        }
-        catch (NATSConnectionException e)
-        {
-            MessageBox.Show(e.Message);
-            NatsConnectButton.IsEnabled = true;
-            return;
-        }
-        catch (Exception e)
-        {
-            MessageBox.Show($"FATAL: {e.Message}");
-            throw;
-        }
-
-        if (connection.IsClosed()) return;
-
-        _connection = connection;
-        ConnStatus.Text = "CONNECTED";
-        ConnStatus.Foreground = new SolidColorBrush(Colors.Green);
-    }
-
 
     private void ClassComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -94,10 +44,13 @@ public partial class MainWindow : Window
         CreateUi(selectedType);
     }
 
+
+    // todo: this REALLY needs to be refactored and moved
     private void CreateUi(Type? type)
     {
         if (type == null) return;
 
+        // Since IMessage has these properties we want to skip them
         var properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance)
             .Where(p => p.CanRead && p.CanWrite && !p.Name.Equals("Parser") && !p.Name.Equals("Descriptor"))
             .ToArray();
@@ -123,45 +76,7 @@ public partial class MainWindow : Window
                 Margin = new Thickness(5)
             };
 
-            FrameworkElement inputControl;
-
-            if (prop.PropertyType == typeof(string) || prop.PropertyType == typeof(int))
-            {
-                inputControl = new TextBox
-                {
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(5)
-                };
-
-                inputControl.SetBinding(TextBox.TextProperty, new Binding(prop.Name)
-                {
-                    Mode = BindingMode.TwoWay,
-                    UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
-                });
-            }
-            else if (prop.PropertyType == typeof(bool))
-            {
-                inputControl = new CheckBox
-                {
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(5)
-                };
-
-                inputControl.SetBinding(ToggleButton.IsCheckedProperty, new Binding(prop.Name)
-                {
-                    Mode = BindingMode.TwoWay,
-                    UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
-                });
-            }
-            else
-            {
-                inputControl = new TextBlock
-                {
-                    Text = "Not supported",
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(5)
-                };
-            }
+            var inputControl = GetControlByType(prop);
 
             Grid.SetRow(textBlock, i);
             Grid.SetColumn(textBlock, 0);
@@ -176,54 +91,13 @@ public partial class MainWindow : Window
 
         var consoleButton = new Button
         {
-            Content = "Log to Console",
+            Content = "Publish to NATS",
             Margin = new Thickness(5),
             Padding = new Thickness(10),
             HorizontalAlignment = HorizontalAlignment.Center
         };
 
-        consoleButton.Click += (sender, args) =>
-        {
-            // Create an instance of the type that was passed to CreateUI
-            var instance = Activator.CreateInstance(type);
-
-            // Assign the property values from the UI controls to the instance
-            foreach (var child in grid.Children)
-            {
-                if (child is TextBox textBox && Grid.GetColumn(textBox) == 1)
-                {
-                    var propertyName = grid.Children
-                        .OfType<TextBlock>()
-                        .First(tb => Grid.GetRow(tb) == Grid.GetRow(textBox) && Grid.GetColumn(tb) == 0)
-                        .Text.Split(" ");
-
-                    var propertyInfo = type.GetProperty(propertyName[0]);
-
-                    if (propertyInfo != null)
-                    {
-                        var value = GetValueFromControl(propertyInfo,
-                            textBox.Text);
-                        propertyInfo.SetValue(instance, value);
-                    }
-                }
-
-                if (child is CheckBox checkBox && Grid.GetColumn(checkBox) == 1)
-                {
-                    var propertyName = grid.Children
-                        .OfType<TextBlock>()
-                        .First(tb => Grid.GetRow(tb) == Grid.GetRow(checkBox) && Grid.GetColumn(tb) == 0)
-                        .Text.Split(" ");
-
-                    var propertyInfo = type.GetProperty(propertyName[0]);
-
-                    if (propertyInfo != null)
-                        propertyInfo.SetValue(instance, checkBox.IsChecked);
-                }
-            }
-
-            Console.WriteLine(instance);
-            MessageBox.Show(instance?.ToString());
-        };
+        consoleButton.Click += (_, _) => { NatsPublishClick(type); };
 
         Grid.SetRow(consoleButton, properties.Length);
         Grid.SetColumnSpan(consoleButton, 2);
@@ -253,7 +127,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            MessageBox.Show("Could not load that assembly.");
+            MessageBox.Show($"Could not load {_selectedFile}");
         }
     }
 
@@ -261,6 +135,77 @@ public partial class MainWindow : Window
     {
         NatsConnectButton.IsEnabled = false;
         ConnectToNats(NatsUrlBox.Text);
+    }
+
+    private void ConnectToNats(string connectionUrl)
+    {
+        if (string.IsNullOrWhiteSpace(connectionUrl))
+        {
+            MessageBox.Show("Please enter a valid URL!");
+            return;
+        }
+
+        var opts = SetupOptions(connectionUrl);
+
+        var connectionFactory = new ConnectionFactory();
+        IConnection connection;
+        try
+        {
+            connection = connectionFactory.CreateConnection(opts);
+        }
+        catch (NATSConnectionException e)
+        {
+            MessageBox.Show(e.StackTrace);
+            NatsConnectButton.IsEnabled = true;
+            return;
+        }
+        catch (Exception e)
+        {
+            MessageBox.Show($"FATAL: {e.Message}");
+            throw;
+        }
+
+        if (connection.IsClosed())
+        {
+            SetNatsStatus(ConnectionStatus.Closed);
+            return;
+        }
+
+        _connection = connection;
+        _natsPublisher = new NatsPublisher(_connection);
+
+        ConnStatus.Text = "CONNECTED";
+        ConnStatus.Foreground = new SolidColorBrush(Colors.Green);
+        // todo:
+        NatsSubjectText.Visibility = Visibility.Visible;
+        NatsSubjectBox.Visibility = Visibility.Visible;
+        MessageCountText.Visibility = Visibility.Visible;
+        MessageCountBox.Visibility = Visibility.Visible;
+    }
+
+    private Options SetupOptions(string connectionUrl)
+    {
+        var opts = ConnectionFactory.GetDefaultOptions();
+        opts.Url = connectionUrl;
+
+        opts.Name = $"{Environment.MachineName}-NatsProto";
+        opts.AllowReconnect = true;
+        opts.DisconnectedEventHandler += async (sender, args) =>
+        {
+            await Dispatcher.InvokeAsync(() => SetNatsStatus(ConnectionStatus.Disconnected));
+        };
+
+        opts.ClosedEventHandler += async (sender, args) =>
+        {
+            await Dispatcher.InvokeAsync(() => SetNatsStatus(ConnectionStatus.Closed));
+        };
+
+        opts.ReconnectedEventHandler += async (sender, args) =>
+        {
+            await Dispatcher.InvokeAsync(() => SetNatsStatus(ConnectionStatus.Reconnecting));
+        };
+
+        return opts;
     }
 
     private void SetNatsStatus(ConnectionStatus status)
@@ -271,17 +216,31 @@ public partial class MainWindow : Window
                 ConnStatus.Text = "CLOSED";
                 ConnStatus.Foreground = new SolidColorBrush(Colors.Red);
                 NatsConnectButton.IsEnabled = true;
+
+                NatsSubjectText.Visibility = Visibility.Hidden;
+                NatsSubjectBox.Visibility = Visibility.Hidden;
+                MessageCountText.Visibility = Visibility.Hidden;
+                MessageCountBox.Visibility = Visibility.Hidden;
                 break;
             case ConnectionStatus.Connected:
                 ConnStatus.Text = "CONNECTED";
                 ConnStatus.Foreground = new SolidColorBrush(Colors.Green);
+                NatsSubjectText.Visibility = Visibility.Visible;
+                NatsSubjectBox.Visibility = Visibility.Visible;
+                MessageCountText.Visibility = Visibility.Visible;
+                MessageCountBox.Visibility = Visibility.Visible;
                 break;
             case ConnectionStatus.Disconnected:
                 ConnStatus.Text = "DISCONNECTED";
                 ConnStatus.Foreground = new SolidColorBrush(Colors.Orange);
                 NatsConnectButton.IsEnabled = true;
+
+                NatsSubjectText.Visibility = Visibility.Hidden;
+                NatsSubjectBox.Visibility = Visibility.Hidden;
+                MessageCountText.Visibility = Visibility.Hidden;
+                MessageCountBox.Visibility = Visibility.Hidden;
                 break;
-            case ConnectionStatus.Reconnected:
+            case ConnectionStatus.Reconnecting:
                 ConnStatus.Text = "RECONNECTING...";
                 ConnStatus.Foreground = new SolidColorBrush(Colors.Blue);
                 break;
@@ -289,7 +248,77 @@ public partial class MainWindow : Window
                 ConnStatus.Text = "UNKNOWN";
                 ConnStatus.Foreground = new SolidColorBrush(Colors.Black);
                 NatsConnectButton.IsEnabled = true;
+
+                NatsSubjectText.Visibility = Visibility.Hidden;
+                NatsSubjectBox.Visibility = Visibility.Hidden;
+                MessageCountText.Visibility = Visibility.Hidden;
+                MessageCountBox.Visibility = Visibility.Hidden;
                 break;
         }
+    }
+
+    private void NatsPublishClick(Type type)
+    {
+        // Create an instance of the type that was passed to CreateUI
+        var instance = Activator.CreateInstance(type);
+
+        // Assign the property values from the UI controls to the instance
+        foreach (var child in grid.Children)
+        {
+            if (child is TextBox textBox && Grid.GetColumn(textBox) == 1)
+            {
+                var propertyName = grid.Children
+                    .OfType<TextBlock>()
+                    .First(tb => Grid.GetRow(tb) == Grid.GetRow(textBox) && Grid.GetColumn(tb) == 0)
+                    .Text.Split(" ");
+
+                var propertyInfo = type.GetProperty(propertyName[0]);
+
+                if (propertyInfo != null)
+                {
+                    var value = GetValueFromControl(propertyInfo,
+                        textBox.Text);
+                    propertyInfo.SetValue(instance, value);
+                }
+            }
+
+            if (child is CheckBox checkBox && Grid.GetColumn(checkBox) == 1)
+            {
+                var propertyName = grid.Children
+                    .OfType<TextBlock>()
+                    .First(tb => Grid.GetRow(tb) == Grid.GetRow(checkBox) && Grid.GetColumn(tb) == 0)
+                    .Text.Split(" ");
+
+                var propertyInfo = type.GetProperty(propertyName[0]);
+
+                if (propertyInfo != null)
+                    propertyInfo.SetValue(instance, checkBox.IsChecked);
+            }
+        }
+
+        // todo: unsafe
+        var messageInstance = (IMessage)instance!;
+        if (messageInstance != null)
+        {
+            _natsPublisher?.PublishMessage(NatsSubjectBox.Text, messageInstance.ToByteArray(),
+                int.Parse(MessageCountBox.Text));
+
+            MessageBox.Show(
+                $"Published {MessageCountBox.Text} of {instance?.GetType().Name} to {NatsSubjectBox.Text}");
+        }
+        else
+        {
+            MessageBox.Show("Type is not of IMessage...");
+        }
+    }
+
+    private void MessageCountBox_OnPreviewTextInput(object sender, TextCompositionEventArgs e)
+    {
+        e.Handled = !TextIsNumeric(e.Text);
+    }
+
+    private static bool TextIsNumeric(string input)
+    {
+        return input.All(c => char.IsDigit(c) || char.IsControl(c));
     }
 }

@@ -33,7 +33,7 @@ jobs:
         run: |
           $env:TAG=$(git describe --tags --abbrev=0)
           $env:RELEASE_NAME="Protender-$env:TAG-${{ matrix.target }}"
-          dotnet publish src/Protender/Protender.csproj -c Release -o "protender" -r win-x64 /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true --version-suffix $env:TAG
+          dotnet publish src/Protender/Protender.csproj -c Release -o "protender" -r win-x64 --version-suffix $env:TAG --no-self-contained
 
       - name: Zip folder
         run: 7z a -tzip "Protender.zip" "D:\a\Protender\protender\protender\*"
