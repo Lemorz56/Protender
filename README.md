@@ -1,5 +1,6 @@
 # Protender (README WIP)
 ![Build Status](https://github.com/Lemorz56/Protender/actions/workflows/ci.yml/badge.svg?branch=main)
+[![Publish](https://github.com/Lemorz56/Protender/actions/workflows/cd.yml/badge.svg)](https://github.com/Lemorz56/Protender/actions/workflows/cd.yml)
 ---
 
 ### About 
