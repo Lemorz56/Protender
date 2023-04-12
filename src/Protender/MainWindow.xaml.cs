@@ -6,10 +6,12 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using Google.Protobuf;
 using Microsoft.Win32;
 using NATS.Client;
 using static Protender.UiHelper;
+using Serilog;
 
 namespace Protender;
 
@@ -18,7 +20,7 @@ namespace Protender;
 /// </summary>
 public partial class MainWindow : Window
 {
-    private Dictionary<string, Type?> _classes = new();
+    private Dictionary<string, Type> _classes = new();
     private string _selectedFile = "";
     private IConnection? _connection;
 
@@ -116,18 +118,30 @@ public partial class MainWindow : Window
         if (openFileDlg.ShowDialog() == true)
         {
             _selectedFile = openFileDlg.FileName;
-            var splitList = _selectedFile.Split("\\");
-            var splitTest = splitList.TakeLast(1).SingleOrDefault();
-            var sanitizedAssemblyName = splitTest?.Replace(".dll", "");
-            if (sanitizedAssemblyName != null)
-            {
-                _classes = AssemblyUtils.LoadClasses(sanitizedAssemblyName);
-                ClassComboBox.IsEnabled = true;
-                ClassComboBox.ItemsSource = _classes.Keys;
-                return;
-            }
+            Log.Debug("Selected file {file} to open", _selectedFile);
 
-            MessageBox.Show($"Could not load {_selectedFile}");
+            try
+            {
+                var splitList = _selectedFile.Split("\\");
+                var splitTest = splitList.TakeLast(1).SingleOrDefault();
+                if (splitTest == null)
+                    throw new NullReferenceException(nameof(splitTest));
+
+                var sanitizedAssemblyName = splitTest.Replace(".dll", "");
+                _classes = AssemblyUtils.LoadClasses(sanitizedAssemblyName);
+                if (_classes.Count > 0)
+                {
+                    ClassComboBox.IsEnabled = true;
+                    ClassComboBox.ItemsSource = _classes.Keys;
+                    return;
+                }
+
+                MessageBox.Show($"Could not load {_selectedFile} correctly, no classes found.");
+            }
+            catch (Exception exception)
+            {
+                Log.Error(exception, "Something went wrong when loading classes from {file}", _selectedFile);
+            }
         }
     }
 
@@ -155,14 +169,20 @@ public partial class MainWindow : Window
         }
         catch (NATSConnectionException e)
         {
-            MessageBox.Show(e.StackTrace);
+            Log.Debug($"Failed to create a nats connection to {opts.Url}.");
+            MessageBox.Show(e.Message);
             NatsConnectButton.IsEnabled = true;
             return;
         }
         catch (Exception e)
         {
             MessageBox.Show($"FATAL: {e.Message}");
+            Log.Error(e, "Could not create a NATS connection.");
             throw;
+        }
+        finally
+        {
+            Log.CloseAndFlush();
         }
 
         if (connection.IsClosed())
@@ -300,7 +320,9 @@ public partial class MainWindow : Window
         var messageInstance = (IMessage)instance!;
         if (messageInstance != null)
         {
-            _natsPublisher?.PublishMessage(NatsSubjectBox.Text, messageInstance.ToByteArray(),
+            if (_natsPublisher == null) throw new NullReferenceException(nameof(_natsPublisher));
+
+            _natsPublisher.PublishMessage(NatsSubjectBox.Text, messageInstance.ToByteArray(),
                 int.Parse(MessageCountBox.Text));
 
             MessageBox.Show(

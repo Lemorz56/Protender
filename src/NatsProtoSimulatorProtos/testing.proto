@@ -8,3 +8,25 @@ message TestMessage {
   int32 result_per_page = 3;
   bool do_this = 4;
 }
+
+message TestMessageOneof {
+  string query = 1;
+  oneof test_oneof {
+      TestString test_string = 2;
+      TestInt32 test_int = 3;
+  }
+  bool do_this = 4;
+}
+
+message TestString {
+    string test = 1;
+}
+
+message TestInt32 {
+    int32 test = 1;
+}
+
+message TestMessageInMessage {
+    string name = 1;
+    TestString test_string = 2;
+}

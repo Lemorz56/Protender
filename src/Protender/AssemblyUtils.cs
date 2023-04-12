@@ -4,40 +4,46 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using Google.Protobuf;
+using Serilog;
 
 namespace Protender;
 
 public static class AssemblyUtils
 {
-    public static Dictionary<string, Type?> LoadClasses(string assemblyName)
+    public static Dictionary<string, Type> LoadClasses(string assemblyName)
     {
-        var classes = new Dictionary<string, Type?>();
         var assemblyWorking = FindAssemblyInReferences(assemblyName);
 
-        if (assemblyWorking == null) return classes;
+        //if (assemblyWorking == null) return classes;
 
-        foreach (var type in assemblyWorking.GetTypes().Where(t => t.IsClass
-                                                                   && !t.IsAbstract
-                                                                   && !t.IsInterface
-                                                                   && typeof(IMessage).IsAssignableFrom(t)
-                 ))
-            classes.Add(type.Name, type);
-
-        return classes;
+        return assemblyWorking.GetTypes()
+            .Where(t => t.IsClass && !t.IsAbstract && !t.IsInterface && typeof(IMessage).IsAssignableFrom(t))
+            .ToDictionary(type => type.Name);
     }
 
-    private static Assembly? FindAssemblyInReferences(string prefixName)
+    private static Assembly FindAssemblyInReferences(string prefixName)
     {
-        var loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies().ToList();
-        var loadedPaths = loadedAssemblies.Select(a => a.Location).ToArray();
+        try
+        {
+            var loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies().ToList();
+            var loadedPaths = loadedAssemblies.Select(a => a.Location).ToArray();
 
-        var referencedPaths = Directory.GetFiles(AppDomain.CurrentDomain.BaseDirectory, "*.dll");
-        var toLoad = referencedPaths.Where(r => !loadedPaths.Contains(r, StringComparer.InvariantCultureIgnoreCase))
-            .Where(x => x.Contains(prefixName))
-            .ToList();
+            var referencedPaths = Directory.GetFiles(AppDomain.CurrentDomain.BaseDirectory, "*.dll");
+            var toLoad = referencedPaths.Where(r => !loadedPaths.Contains(r, StringComparer.InvariantCultureIgnoreCase))
+                .Where(x => x.Contains(prefixName))
+                .ToList();
 
-        toLoad.ForEach(path => loadedAssemblies.Add(AppDomain.CurrentDomain.Load(AssemblyName.GetAssemblyName(path))));
+            toLoad.ForEach(path =>
+                loadedAssemblies.Add(AppDomain.CurrentDomain.Load(AssemblyName.GetAssemblyName(path))));
 
-        return loadedAssemblies.FirstOrDefault(x => x.FullName != null && x.FullName.Contains(prefixName));
+            var filtered = loadedAssemblies.FirstOrDefault(x => x.FullName != null && x.FullName.Contains(prefixName));
+            if (filtered == null) throw new NullReferenceException(nameof(filtered));
+            return filtered;
+        }
+        catch (Exception e)
+        {
+            Log.Error(e, "Something went wrong when trying to find assembly references of prefix {prefix}", prefixName);
+            throw;
+        }
     }
 }

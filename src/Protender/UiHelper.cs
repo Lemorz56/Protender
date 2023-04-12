@@ -74,8 +74,7 @@ public static class UiHelper
             success = bool.TryParse(valueFromControl, out var value);
             if (success) return value;
         }
-
-        if (propertyInfo.PropertyType == typeof(int))
+        else if (propertyInfo.PropertyType == typeof(int))
         {
             success = int.TryParse(valueFromControl, out var value);
             if (success) return value;
@@ -95,6 +94,14 @@ public static class UiHelper
             success = DateTime.TryParse(valueFromControl, out var value);
             if (success) return value;
         }
+        else
+        {
+            MessageBox.Show($"Type {propertyInfo.PropertyType} is not implemented.");
+            // todo: throw or return null?
+            throw new NotImplementedException($"Type {propertyInfo.PropertyType} is not implemented.");
+        }
+
+        if (success == false) MessageBox.Show($"Could not parse {valueFromControl} to type {propertyInfo}");
 
         throw new NotImplementedException($"Type {propertyInfo.PropertyType} is not implemented.");
     }
